@@ -6,6 +6,7 @@ const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const cors = require('cors');
 const bodyParser = require('body-parser');
+const cron = require('node-cron');
 const User = require('./models/UserModel.js');
 const Subscriber = require('./models/SubscriberModel.js');
 const Usage = require('./models/UsageModel.js');
@@ -308,3 +309,12 @@ bot.catch((error) => {
 });
 
 console.log('Bot is running!');
+
+ron.schedule('0 */2 * * *', async () => {
+    try {
+        console.log('Bot Server Running...');
+    }
+    catch (error) {
+        console.log(error.message);
+    }
+})
