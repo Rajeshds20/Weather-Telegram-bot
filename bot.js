@@ -106,7 +106,7 @@ bot.command('subscribe', (ctx) => {
                 subscriber.save()
                     .then(() => {
                         console.log('Subscriber saved to database!');
-                        ctx.reply('You have subscribed to weather updates! \nYou can access weather uodates using /weather command.');
+                        ctx.reply('You have subscribed to weather updates! \nYou can access weather updates using `/weather` command.');
                     })
                     .catch((error) => {
                         console.log('Error saving subscriber to database:', error.message);
