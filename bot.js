@@ -310,7 +310,7 @@ bot.catch((error) => {
 
 console.log('Bot is running!');
 
-ron.schedule('0 */2 * * *', async () => {
+cron.schedule('0 */2 * * *', async () => {
     try {
         console.log('Bot Server Running...');
     }
