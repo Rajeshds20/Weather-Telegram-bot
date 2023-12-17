@@ -11,7 +11,15 @@ const subscriberSchema = new mongoose.Schema({
         type: Number,
         required: true,
         unique: [true, 'User already exists'],
-    }
+    },
+    city: {
+        type: String,
+        // required: true,
+    },
+    time: {
+        type: Date,
+        default: Date.now,
+    },
 });
 
 // Create the user model

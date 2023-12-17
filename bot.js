@@ -6,13 +6,13 @@ const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-const cron = require('node-cron');
 const User = require('./models/UserModel.js');
 const Subscriber = require('./models/SubscriberModel.js');
 const Usage = require('./models/UsageModel.js');
 const Stat = require('./models/StatModel.js');
 const BlockedUser = require('./models/BlockedUserModel.js');
 const router = require('./routes/dataRoute.js');
+const cron = require('node-cron');
 
 // Declare the variables
 let isListening = false;
@@ -85,6 +85,65 @@ bot.start((ctx) => {
     ctx.reply('Welcome to the WEATHER UPDATE bot!\nThis is a publicly available bot made by Rajesh to get the weather information of a particular city of your choice... \n\n\nTap /help - To Get help with commands\n\nMade with ❤️ by Rajesh');
 });
 
+
+bot.on('location', async (ctx) => {
+    const userId = ctx.from.id;
+    const username = ctx.from.username;
+    const location = ctx.message.location;
+
+    const res = await axios.get(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${location.latitude}&lon=${location.longitude}`);
+    const city = res.data.address.city;
+
+    try {
+        let subscriber = await Subscriber.findOne({ userid: userId });
+
+        if (subscriber) {
+            subscriber.city = city;
+            await subscriber.save();
+            if (!city) {
+                ctx.reply('Unable to detect your location right now, Please try again later');
+            }
+            // console.log('Subscriber saved to database!');
+            ctx.reply(`You have subscribed to weather updates for ${city}! \nYou can access weather updates using /weather command.\n`);
+        } else {
+            subscriber = new Subscriber({
+                username: username,
+                userid: userId,
+                city: city,
+            });
+
+            await subscriber.save();
+            // console.log('Subscriber saved to database!');
+            ctx.telegram.sendMessage(`You have subscribed to weather updates for ${city}! \nYou can access weather updates using /weather command.\n`);
+        }
+        const apiUrl = `https://api.openweathermap.org/data/2.5/forecast?APPID=${weatherAPIKey}&q=${city}`;
+
+        try {
+            const response = await axios.get(apiUrl);
+            const weatherData = response.data;
+
+            const cityName = weatherData.city.name;
+            const country = weatherData.city.country;
+            const date_txt = weatherData.list[0].dt_txt;
+            const date = date_txt.split(' ')[0];
+            const temperature = weatherData.list[0].main.temp;
+            const condition = weatherData.list[0].weather[0].description;
+            const windSpeed = weatherData.list[0].wind.speed;
+            const coord = weatherData.city.coord;
+            const population = weatherData.city.population;
+            const time = new Date().toLocaleTimeString();
+
+            ctx.reply(`Current weather in ${cityName}, ${country} :- \n\nTemp: ${temperature}K, ${condition} \nDate: ${date}, Time: ${time}\nWind Speed: ${windSpeed}m/s\nPopulation: ${population}\nCoordinates: ${coord.lon}, ${coord.lat}`);
+        } catch (error) {
+            console.log('Error fetching weather data:', error.message);
+            ctx.reply('City not found!\nPlease enter a valid city name...');
+        }
+    } catch (error) {
+        console.log('Error saving subscriber to database:', error.message);
+        ctx.reply('Sorry, Unable to Subscribe at the Moment.');
+    }
+});
+
 // Handling "/subscribe" command
 bot.command('subscribe', (ctx) => {
     // Handle subscription logic here
@@ -94,7 +153,7 @@ bot.command('subscribe', (ctx) => {
     Subscriber.findOne({ userid: userId })
         .then((subscriber) => {
             if (subscriber) {
-                ctx.reply('You have already subscribed to weather updates!');
+                ctx.reply('You have already subscribed to weather updates!\n\n Send your current location to get notified of weather updates in your area.');
                 return;
             }
             else {
@@ -106,7 +165,7 @@ bot.command('subscribe', (ctx) => {
                 subscriber.save()
                     .then(() => {
                         console.log('Subscriber saved to database!');
-                        ctx.reply('You have subscribed to weather updates! \nYou can access weather updates using `/weather` command.');
+                        ctx.reply(`You have subscribed to weather updates! \nYou can access weather uodates using /weather command.\nYou can unsubscribe from weather updates using /unsubscribe command.\n\nSend your location to this bot to get notified of weather updates in your area.`);
                     })
                     .catch((error) => {
                         console.log('Error saving subscriber to database:', error.message);
@@ -169,9 +228,7 @@ bot.command('unsubscribe', (ctx) => {
 
 // Handling "/weather" command
 bot.command('weather', (ctx) => {
-
     isListening = true;
-
     BlockedUser.findOne({ userid: ctx.from.id })
         .then((blockedUser) => {
             if (blockedUser) {
@@ -293,11 +350,40 @@ bot.command('weather', (ctx) => {
         });
 });
 
-
 // Handling "/help" command
 bot.command('help', (ctx) => {
     ctx.reply('The Bot Commands are as follows:\n\n/subscribe - Subscribe to bot\n/weather - Get the current weather data\n/unsubscribe - Unsubscribe from bot');
 });
+
+async function sendWeatherUpdates() {
+    const subscribers = await Subscriber.find();
+    subscribers.forEach((item) => {
+        if (item.city) {
+            const apiUrl = `https://api.openweathermap.org/data/2.5/forecast?APPID=${weatherAPIKey}&q=${item.city}`;
+            axios.get(apiUrl)
+                .then((response) => {
+                    const weatherData = response.data;
+                    const cityName = weatherData.city.name;
+                    const country = weatherData.city.country;
+                    const date_txt = weatherData.list[0].dt_txt;
+                    const date = date_txt.split(' ')[0];
+                    const temperature = weatherData.list[0].main.temp;
+                    const condition = weatherData.list[0].weather[0].description;
+                    const windSpeed = weatherData.list[0].wind.speed;
+                    const coord = weatherData.city.coord;
+                    const population = weatherData.city.population;
+                    const time = new Date().toLocaleTimeString();
+                    bot.telegram.sendMessage(item.userid, `Hey there ${item.username ? item.username : ""}\n\n Today Weather Updates :\n\n Current weather in ${cityName}, ${country} :- \n\nTemp: ${temperature}K, ${condition} \nDate: ${date}, Time: ${time}\nWind Speed: ${windSpeed}m/s\nPopulation: ${population}\nCoordinates: ${coord.lon}, ${coord.lat}`);
+                })
+                .catch((error) => {
+                    console.log('Error fetching weather data:', error.message);
+                });
+        }
+    })
+}
+
+
+cron.schedule('33 12 * * *', sendWeatherUpdates);
 
 
 // Start the bot
@@ -309,12 +395,3 @@ bot.catch((error) => {
 });
 
 console.log('Bot is running!');
-
-cron.schedule('0 */2 * * *', async () => {
-    try {
-        console.log('Bot Server Running...');
-    }
-    catch (error) {
-        console.log(error.message);
-    }
-})
