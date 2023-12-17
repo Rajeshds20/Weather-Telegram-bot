@@ -383,7 +383,7 @@ async function sendWeatherUpdates() {
 }
 
 
-cron.schedule('33 12 * * *', sendWeatherUpdates);
+cron.schedule('30 13 * * *', sendWeatherUpdates);
 
 
 // Start the bot
